@@ -59,5 +59,5 @@ class DeleteTenantRequest(BaseModel):
 
 
 class ListTenantRequest(BaseModel):
-    enable: Optional[bool] = False
+    enable: Optional[bool] = True
     orderBy: Literal["asc", "desc"] = "desc"

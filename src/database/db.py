@@ -4,6 +4,7 @@ from fastapi import Header, Depends, HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, AsyncEngine
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.sql import quoted_name
 
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
@@ -49,7 +50,9 @@ async def get_tenant_db(
         {"short_name": x_tenant},
     )
     schema = result.scalar_one_or_none()
+
     if schema is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Tenant '{x_tenant}' not found")
-    await db.execute(text(f'SET search_path TO "{schema}"'))
+    safe_schema = quoted_name(schema, quote=True)
+    await db.execute(text(f'SET search_path TO {safe_schema}'))
     yield db

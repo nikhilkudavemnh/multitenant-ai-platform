@@ -1,12 +1,14 @@
 from datetime import datetime, UTC
-from fastapi import Request, Header
+
+from fastapi import Header
 from sqlalchemy import select, desc, asc, text, or_
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.models.tenant_model import Client
-from src.database.db import Base
 from src.core.setting import settings
+from src.database.db import Base
+from src.helper.agent_helper import setup_langgraph_table
+from src.models.tenant_model import Client
 from src.util.auth import verify_password
+
 
 class TenantRepository:
     def __init__(self, db: AsyncSession):
@@ -30,14 +32,9 @@ class TenantRepository:
         await self._db.delete(client)
         await self._db.commit()
 
-    async def get_list(self, order: str = "desc", active_only: bool = False) -> list[Client]:
+    async def get_list(self) -> list[Client]:
         query = select(Client)
-        if active_only:
-            now_utc = datetime.now(UTC).replace(tzinfo=None)
-            query = query.where(
-                or_(Client.expiry_date == None, Client.expiry_date > now_utc)
-            )
-        order_fn = desc if order == "desc" else asc
+        order_fn =  asc
         query = query.order_by(order_fn(Client.id))
         result = await self._db.execute(query)
         return list(result.scalars().all())
@@ -57,6 +54,7 @@ class TenantRepository:
                 bind=sync_conn, tables=private_tables,
             )
         )
+
         # Roles inserted first; created_by=1 because system user will get user_id=1 (first sequence value)
         await conn.execute(text(
             f'INSERT INTO "{schema_name}".roles (role_name, permissions, is_active, created_by) '
@@ -74,6 +72,12 @@ class TenantRepository:
             ),
             {"email": settings.ADMIN_EMAIL, "password_hash": settings.ADMIN_PASSWORD_HASH},
         )
+        # Commit must happen before setup_langgraph_table: that helper runs
+        # CREATE INDEX CONCURRENTLY, which blocks until every concurrent open
+        # transaction finishes. If this session still held an open transaction
+        # (e.g. an uncommitted SELECT), the index build would wait on it forever.
+        await self._db.commit()
+        await setup_langgraph_table([schema_name])
 
     @staticmethod
     async def verify_admin_user(admin_password:str = Header(..., alias="X-Admin-Password", description="The password of the admin user")):

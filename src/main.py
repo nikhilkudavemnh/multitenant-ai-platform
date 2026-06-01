@@ -1,21 +1,19 @@
-import uvicorn
-
 from contextlib import asynccontextmanager
 
+import uvicorn
 from fastapi import Depends, FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-
-from src.core.setting import settings
-from src.database.db import init_db, get_db
 import src.models  # noqa: F401 — registers all models with Base.metadata
-from src.service.tenant_service import PublicSchemaInitializer
-from src.util.request_response_middleware import RequestResponseMiddleware
-from src.util.auth import get_current_user
+from src.api.agent import agent_router
 from src.api.auth import auth_router
 from src.api.tenant import tenant_router
+from src.core.setting import settings
+from src.database.db import init_db, get_db
 from src.repository.tenant_repository import TenantRepository
-
+from src.service.tenant_service import PublicSchemaInitializer
+from src.util.auth import get_current_user
+from src.util.request_response_middleware import RequestResponseMiddleware
 
 DATABASE_URL = (
     f"postgresql+asyncpg://"
@@ -40,11 +38,11 @@ engine = create_async_engine(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # init tables
     init_db(engine)
-
+    # initialize public schema
     public_schema = PublicSchemaInitializer(engine)
     await public_schema.initialize_public_schema()
-
     yield
 
     await engine.dispose()
@@ -59,7 +57,6 @@ app = FastAPI(
 app.add_middleware(RequestResponseMiddleware)
 
 
-
 # add future routers here with: dependencies=[Depends(get_current_user)]
 
 @app.get("/health", tags=["health"])
@@ -72,7 +69,7 @@ async def health():
 
 @app.get("/healthcheck-full", tags=["health"])
 async def healthcheck(
-    db: AsyncSession = Depends(get_db),
+        db: AsyncSession = Depends(get_db),
 ):
     await db.execute(text("SELECT 1"))
 
@@ -84,6 +81,7 @@ async def healthcheck(
 
 app.include_router(tenant_router, dependencies=[Depends(TenantRepository.verify_admin_user)])
 app.include_router(auth_router)
+app.include_router(agent_router, dependencies=[Depends(get_current_user)])
 
 if __name__ == "__main__":
     uvicorn.run(

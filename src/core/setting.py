@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     JWT_EXPIRATION_DELTA: timedelta = timedelta(minutes=15)
     JWT_REFRESH_EXPIRATION_DELTA: timedelta = timedelta(days=7)
 
+    ANTHROPIC_API_KEY: str = os.environ.get("ANTHROPIC_API_KEY", "")
+    ANTHROPIC_MODEL: str = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+    GOOGLE_API_KEY: str = os.environ.get("GOOGLE_API_KEY", "")
+    GOOGLE_CSE_ID: str = os.environ.get("GOOGLE_CSE_ID", "")
+
     EXCLUDE_URL: frozenset[str] = frozenset({
         "/docs",
         "/openapi.json"

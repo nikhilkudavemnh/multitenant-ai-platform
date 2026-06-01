@@ -1,12 +1,10 @@
 import hashlib
 import secrets
-import uuid
-
 from sqlalchemy.ext.asyncio import AsyncEngine
 from src.database.db import Base
+from src.repository.tenant_repository import TenantRepository
 from src.util.exceptions import TenantAlreadyExistsError, TenantNotFoundError
 from src.models.tenant_model import Client
-from src.repository.tenant_repository import TenantRepository
 from src.schemas.tenant_schemas import (
     CreateTenantRequest, CreateTenantResponse,
     DeleteTenantRequest,
@@ -101,6 +99,7 @@ class TenantService:
                 "id": c.id,
                 "name": c.name,
                 "shortName": c.short_name,
+                "schema": c.schema,
                 "plan": c.plan,
                 "expiryDate": str(c.expiry_date),
             }
